@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Матрица приоритетов</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@500;700;800&family=Golos+Text:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky toolbar, then a 2×2 board with axis labels on top and left; cards are small paper slips. */
+:root{
+  --bg:#f6f4ee; --panel:#ffffff; --fg:#1d1b17; --muted:#6f6a5e; --line:#e2ddd2; --line-strong:#c9c2b3;
+  --accent:#2f5bd1; --accent-ink:#ffffff;
+  --q1:#fff1ee; --q1-ink:#b2382a; --q2:#eef5ff; --q2-ink:#2d55b7; --q3:#fff8e6; --q3-ink:#9a6b00; --q4:#f0f3ef; --q4-ink:#4c6a52;
+  --t-question:#7a4ccf; --t-problem:#d5493a; --t-project:#1f8f6f;
+  --shadow:0 1px 2px rgba(30,25,15,.08),0 6px 18px rgba(30,25,15,.08);
+  --display:"Onest",system-ui,sans-serif; --body:"Golos Text",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17160f; --panel:#22211a; --fg:#ece8dc; --muted:#a39d8d; --line:#36342a; --line-strong:#4b4839;
+  --accent:#7fa0ff; --accent-ink:#101322;
+  --q1:#2b1a16; --q1-ink:#ff9a8a; --q2:#161f31; --q2-ink:#8fb0ff; --q3:#2a2310; --q3-ink:#ffcc5c; --q4:#1b221c; --q4-ink:#9dc9a6;
+  --t-question:#b89cff; --t-problem:#ff8a7a; --t-project:#5fd3b0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17160f; --panel:#22211a; --fg:#ece8dc; --muted:#a39d8d; --line:#36342a; --line-strong:#4b4839;
+  --accent:#7fa0ff; --accent-ink:#101322;
+  --q1:#2b1a16; --q1-ink:#ff9a8a; --q2:#161f31; --q2-ink:#8fb0ff; --q3:#2a2310; --q3-ink:#ffcc5c; --q4:#1b221c; --q4-ink:#9dc9a6;
+  --t-question:#b89cff; --t-problem:#ff8a7a; --t-project:#5fd3b0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35); color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 24px;
+  overscroll-behavior:none}
+body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:14px 10px;border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+h1{font-family:var(--display);font-weight:800;font-size:20px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:12.5px}
+.spacer{flex:1}
+button{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:var(--panel);color:var(--fg);border-radius:8px;padding:7px 12px}
+button:hover{border-color:var(--fg)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 6px}
+button.ghost:hover{color:var(--fg);background:var(--line)}
+.count{font-family:var(--display);font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* Board */
+.board{display:grid;grid-template-columns:26px 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:10px;margin-top:14px;min-height:calc(100vh - 140px)}
+.ax{font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.ax.top{grid-row:1}
+.ax.side{writing-mode:vertical-rl;transform:rotate(180deg);grid-column:1}
+.corner{grid-column:1;grid-row:1}
+.q{border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;min-height:160px;border:1.5px solid transparent;transition:border-color .12s,box-shadow .12s}
+.q.over{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.q[data-q="1"]{background:var(--q1);--qi:var(--q1-ink)}
+.q[data-q="2"]{background:var(--q2);--qi:var(--q2-ink)}
+.q[data-q="3"]{background:var(--q3);--qi:var(--q3-ink)}
+.q[data-q="4"]{background:var(--q4);--qi:var(--q4-ink)}
+.qh{display:flex;align-items:baseline;gap:8px;color:var(--qi)}
+.qh b{font-family:var(--display);font-weight:800;font-size:15px}
+.qh span{font-size:12px;opacity:.85}
+.qh .n{margin-left:auto;font-family:var(--display);font-weight:700;font-size:12px;font-variant-numeric:tabular-nums}
+.list{display:flex;flex-direction:column;gap:8px;flex:1}
+.empty{color:var(--muted);font-size:12.5px;padding:10px;border:1px dashed var(--line-strong);border-radius:10px;text-align:center}
+
+/* Card */
+.card{background:var(--panel);border-radius:10px;padding:9px 10px 8px;box-shadow:var(--shadow);border-left:4px solid var(--tc);cursor:grab;touch-action:none;display:grid;grid-template-columns:1fr auto;gap:2px 8px;position:relative}
+.card[data-type="question"]{--tc:var(--t-question)}
+.card[data-type="problem"]{--tc:var(--t-problem)}
+.card[data-type="project"]{--tc:var(--t-project)}
+.card .type{font-family:var(--display);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tc)}
+.card .title{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+.card .note{color:var(--muted);font-size:12.5px;grid-column:1 / -1;overflow-wrap:anywhere;white-space:pre-wrap}
+.card .menu{grid-row:1 / span 2;align-self:start;display:flex;gap:2px}
+.card.ghost{position:fixed;z-index:50;pointer-events:none;transform:rotate(2deg);box-shadow:0 12px 32px rgba(0,0,0,.25);width:var(--w)}
+.card.placeholder{opacity:.35;box-shadow:none}
+
+/* Dialog */
+.scrim{position:fixed;inset:0;background:rgba(20,18,12,.45);z-index:20;display:flex;align-items:center;justify-content:center;padding:16px}
+.dlg{background:var(--panel);border-radius:14px;padding:18px;width:min(420px,100%);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+.dlg h2{font-family:var(--display);font-size:17px;margin:0}
+label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;width:100%}
+textarea{min-height:64px;resize:vertical}
+.types{display:flex;gap:6px}
+.types button{flex:1;padding:7px 4px;font-weight:600;font-size:13px}
+.types button[aria-pressed="true"]{border-color:var(--tc);color:var(--tc);background:var(--bg)}
+.types button[data-type="question"]{--tc:var(--t-question)}
+.types button[data-type="problem"]{--tc:var(--t-problem)}
+.types button[data-type="project"]{--tc:var(--t-project)}
+.row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.row .danger{color:var(--q1-ink);margin-right:auto}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:13px;z-index:30;box-shadow:var(--shadow)}
+
+@media (max-width:640px){
+  .board{grid-template-columns:22px 1fr;grid-template-rows:auto auto auto auto auto;min-height:0}
+  .ax.top,.corner{display:none}
+  .ax.side{grid-row:span 2}
+  .q{grid-column:2}
+  .qh span{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Матрица приоритетов</h1>
+    <div class="sub">Перетащите карточку в нужный квадрант. На телефоне можно переместить через меню «⋯». <span id="sync"></span></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="count" id="total"></span>
+  <button class="primary" id="addBtn">+ Новая карточка</button>
+</header>
+
+<main class="board" id="board">
+  <div class="corner"></div>
+  <div class="ax top">Срочно</div>
+  <div class="ax top">Не срочно</div>
+  <div class="ax side">Важно</div>
+  <section class="q" data-q="1"><div class="qh"><b>Сделать</b><span>важно · срочно</span><span class="n"></span></div><div class="list"></div></section>
+  <section class="q" data-q="2"><div class="qh"><b>Запланировать</b><span>важно · не срочно</span><span class="n"></span></div><div class="list"></div></section>
+  <div class="ax side">Не важно</div>
+  <section class="q" data-q="3"><div class="qh"><b>Делегировать</b><span>не важно · срочно</span><span class="n"></span></div><div class="list"></div></section>
+  <section class="q" data-q="4"><div class="qh"><b>Отложить</b><span>не важно · не срочно</span><span class="n"></span></div><div class="list"></div></section>
+</main>
+
+<div id="dialogHost"></div>
+<div id="toastHost"></div>
+
+<script>
+(function(){
+  const KEY='eisenhower-cards-v1';
+  const TYPES={question:'Вопрос',problem:'Проблема',project:'Проект'};
+  const QN={1:'Сделать',2:'Запланировать',3:'Делегировать',4:'Отложить'};
+  // Storage: shared db when available (same cards on every device), localStorage otherwise.
+  let cards=[], db=null, ready=false;
+  const syncEl=document.getElementById('sync');
+  function loadLocal(){try{const v=localStorage.getItem(KEY);if(v)return JSON.parse(v)}catch(e){}return []}
+  function saveLocal(){if(db)return;try{localStorage.setItem(KEY,JSON.stringify(cards))}catch(e){}}
+  const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36);
+  const store={
+    async put(c){ if(db){try{await db.doc('cards/'+c.id).set({type:c.type,title:c.title,note:c.note,q:c.q,created:c.created||Date.now()})}catch(e){toast('Не удалось сохранить: нет прав на запись')}} else render(); },
+    async move(c,q){ c.q=q; if(db){try{await db.doc('cards/'+c.id).update({q})}catch(e){toast('Не удалось переместить')}} render(); },
+    async remove(c){ cards=cards.filter(x=>x.id!==c.id); if(db){try{await db.doc('cards/'+c.id).delete()}catch(e){toast('Не удалось удалить')}} render(); }
+  };
+  function startLocal(){cards=loadLocal();ready=true;syncEl.textContent='Сохраняется только в этом браузере.';render();}
+  (async()=>{
+    try{
+      if(!window.claude||!claude.use){startLocal();return}
+      db=await claude.use('db');
+      if(!db){startLocal();return}
+      syncEl.textContent='Общая доска: изменения видны на всех устройствах.';
+      let first=true;
+      db.collection('cards').orderBy('created').onSnapshot(snap=>{
+        cards=snap.docs.map(d=>({id:d.id,...d.data()}));
+        ready=true; render();
+        if(first){first=false; const local=loadLocal();
+          if(snap.empty&&local.length){ importLocal(local); } }
+      },e=>{ if(e.code==='revoked'||e.code==='not_granted'){db=null;startLocal();} else toast('Проблема с синхронизацией: '+e.code); });
+    }catch(e){startLocal();}
+  })();
+  async function importLocal(local){
+    for(const c of local){ try{await db.doc('cards/'+(c.id||uid())).set({type:c.type,title:c.title,note:c.note||'',q:c.q,created:Date.now()})}catch(e){return} }
+    try{localStorage.removeItem(KEY)}catch(e){}
+    toast('Карточки из этого браузера перенесены на общую доску');
+  }
+  const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+  function render(){
+    document.querySelectorAll('.q').forEach(sec=>{
+      const q=+sec.dataset.q, list=sec.querySelector('.list'), items=cards.filter(c=>c.q===q);
+      sec.querySelector('.n').textContent=items.length||'';
+      list.innerHTML=items.length?items.map(c=>`
+        <article class="card" data-id="${c.id}" data-type="${c.type}">
+          <div class="type">${TYPES[c.type]}</div>
+          <div class="menu"><button class="ghost" data-act="edit" title="Изменить" aria-label="Изменить">✎</button><button class="ghost" data-act="move" title="Переместить" aria-label="Переместить">⋯</button></div>
+          <div class="title">${esc(c.title)}</div>
+          ${c.note?`<div class="note">${esc(c.note)}</div>`:''}
+        </article>`).join(''):`<div class="empty">${ready?'Пусто. Перетащите сюда карточку.':'Загрузка…'}</div>`;
+    });
+    document.getElementById('total').textContent=cards.length?`${cards.length} ${plural(cards.length)}`:'';
+    saveLocal();
+  }
+  function plural(n){const m=n%10,h=n%100;return (m===1&&h!==11)?'карточка':(m>=2&&m<=4&&(h<10||h>=20))?'карточки':'карточек'}
+
+  // ---------- Dialog ----------
+  const host=document.getElementById('dialogHost');
+  function openEditor(card){
+    const isNew=!card; const c=card||{type:'question',title:'',note:'',q:1};
+    host.innerHTML=`<div class="scrim"><form class="dlg" id="form">
+      <h2>${isNew?'Новая карточка':'Изменить карточку'}</h2>
+      <div class="types">${Object.entries(TYPES).map(([k,v])=>`<button type="button" data-type="${k}" aria-pressed="${k===c.type}">${v}</button>`).join('')}</div>
+      <label>Заголовок<input id="f-title" required maxlength="140" value="${esc(c.title)}" placeholder="Коротко, в одну строку"></label>
+      <label>Заметка<textarea id="f-note" placeholder="Контекст, следующий шаг, кто отвечает">${esc(c.note)}</textarea></label>
+      <label>Квадрант<select id="f-q">${[1,2,3,4].map(q=>`<option value="${q}" ${q===c.q?'selected':''}>${QN[q]}</option>`).join('')}</select></label>
+      <div class="row">${isNew?'':'<button type="button" class="ghost danger" id="del">Удалить</button>'}<button type="button" id="cancel">Отмена</button><button type="submit" class="primary">${isNew?'Добавить':'Сохранить'}</button></div>
+    </form></div>`;
+    let type=c.type;
+    host.querySelectorAll('.types button').forEach(b=>b.onclick=()=>{type=b.dataset.type;host.querySelectorAll('.types button').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+    host.querySelector('#cancel').onclick=close;
+    host.querySelector('.scrim').addEventListener('click',e=>{if(e.target.classList.contains('scrim'))close()});
+    const del=host.querySelector('#del'); if(del)del.onclick=()=>{close();store.remove(c);toast('Карточка удалена')};
+    host.querySelector('#form').onsubmit=e=>{e.preventDefault();
+      const title=host.querySelector('#f-title').value.trim(); if(!title)return;
+      const data={type,title,note:host.querySelector('#f-note').value.trim(),q:+host.querySelector('#f-q').value};
+      let card; if(isNew){card={id:uid(),created:Date.now(),...data};cards.push(card)} else {card=c;Object.assign(c,data)}
+      close();render();store.put(card);};
+    setTimeout(()=>host.querySelector('#f-title').focus(),0);
+  }
+  function openMover(c){
+    host.innerHTML=`<div class="scrim"><div class="dlg"><h2>Куда переместить?</h2>
+      <div class="sub">${esc(c.title)}</div>
+      ${[1,2,3,4].map(q=>`<button data-q="${q}" ${q===c.q?'disabled':''}>${QN[q]}${q===c.q?' (сейчас здесь)':''}</button>`).join('')}
+      <div class="row"><button type="button" id="cancel">Отмена</button></div></div></div>`;
+    host.querySelectorAll('button[data-q]').forEach(b=>b.onclick=()=>{close();store.move(c,+b.dataset.q)});
+    host.querySelector('#cancel').onclick=close;
+    host.querySelector('.scrim').addEventListener('click',e=>{if(e.target.classList.contains('scrim'))close()});
+  }
+  function close(){host.innerHTML=''}
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  document.getElementById('addBtn').onclick=()=>openEditor(null);
+  let toastT; function toast(msg){const t=document.getElementById('toastHost');t.innerHTML=`<div class="toast">${esc(msg)}</div>`;clearTimeout(toastT);toastT=setTimeout(()=>t.innerHTML='',1800)}
+
+  // ---------- Clicks on card buttons ----------
+  const board=document.getElementById('board');
+  board.addEventListener('click',e=>{
+    const b=e.target.closest('button[data-act]'); if(!b)return;
+    const c=cards.find(x=>x.id===b.closest('.card').dataset.id);
+    if(b.dataset.act==='edit')openEditor(c); else openMover(c);
+  });
+
+  // ---------- Pointer drag & drop (mouse + touch) ----------
+  let drag=null;
+  board.addEventListener('pointerdown',e=>{
+    if(e.button!==undefined&&e.button!==0)return;
+    if(e.target.closest('button'))return;
+    const el=e.target.closest('.card'); if(!el)return;
+    const r=el.getBoundingClientRect();
+    drag={el,id:el.dataset.id,sx:e.clientX,sy:e.clientY,ox:e.clientX-r.left,oy:e.clientY-r.top,w:r.width,ghost:null,over:null,started:false,pid:e.pointerId};
+    el.setPointerCapture(e.pointerId);
+  });
+  board.addEventListener('pointermove',e=>{
+    if(!drag||e.pointerId!==drag.pid)return;
+    if(!drag.started){ if(Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<6)return;
+      drag.started=true; document.body.classList.add('dragging');
+      const g=drag.el.cloneNode(true); g.classList.add('ghost'); g.style.setProperty('--w',drag.w+'px'); document.body.appendChild(g); drag.ghost=g; drag.el.classList.add('placeholder'); }
+    drag.ghost.style.left=(e.clientX-drag.ox)+'px'; drag.ghost.style.top=(e.clientY-drag.oy)+'px';
+    const under=document.elementFromPoint(e.clientX,e.clientY); const q=under&&under.closest('.q');
+    if(q!==drag.over){ if(drag.over)drag.over.classList.remove('over'); drag.over=q; if(q)q.classList.add('over'); }
+    e.preventDefault();
+  });
+  function endDrag(e){
+    if(!drag||e.pointerId!==drag.pid)return;
+    const d=drag; drag=null; document.body.classList.remove('dragging');
+    if(d.ghost)d.ghost.remove(); d.el.classList.remove('placeholder'); if(d.over)d.over.classList.remove('over');
+    if(d.started&&d.over){ const c=cards.find(x=>x.id===d.id); const q=+d.over.dataset.q; if(c&&c.q!==q)store.move(c,q); }
+  }
+  board.addEventListener('pointerup',endDrag);
+  board.addEventListener('pointercancel',endDrag);
+
+  render();
+})();
+</script>
+</body>
+</html>
